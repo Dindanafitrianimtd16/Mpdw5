@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r}
-x=3+2
-x+56
+x=3+3
+x
 ```
 
