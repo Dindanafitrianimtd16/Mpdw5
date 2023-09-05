@@ -35,9 +35,6 @@ data.ts <- ts(data$Harga)
 ```
 
 
-
-
-
 ```{r}
 summary(data.ts)
 ```
