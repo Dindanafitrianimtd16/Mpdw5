@@ -1,0 +1,284 @@
+---
+title: "TUGAS 2"
+author: "G14012110834_Dindana Fitriani"
+date: "2023-09-12"
+output: html_document
+---
+## Pemanggilan *Packages*
+
+```{r}
+library(dplyr)
+library(TTR)
+library(forecast)
+library(lmtest) #digunakan untuk uji formal pendeteksian autokorelasi
+library(orcutt) #untuk membuat model regresi Cochrane-Orcutt
+library(HoRM) #untuk membuat model regresi Hildreth-Lu
+library(readxl)
+```
+
+```{r}
+library(rio)
+data <- import ("https://raw.githubusercontent.com/Dindanafitrianimtd16/Mpdw5/main/Data/prak2.csv")
+View(data)
+str(data)
+dim(data)
+```
+
+# Membentuk objek time series
+```{r}
+data.ts<-ts(data$close)
+data.ts
+
+ts.plot(data.ts, xlab="Time Period ", ylab="close", main= "Time Series Plot of restock open")
+points(data.ts)
+```
+
+# Menampilkan ringkasan data
+```{r}
+summary(data)
+```
+Berdasarkan summary data, dapat diketahui bahwa nilai restock of close berada pada rentang 8.758 hingga 11.690 dengan nilai rataan sebesar 10.424.. Begitupun dengan peubah-peubah bebasnya yaitu open berada pada rentang 8.786 hingga 11.690 dengan rataan sebesar 10.426, dan low berada pada rentang 8.694 hingga 11.508 dengan rataan sebesar 11.508, peubah high berada pada rentang  8.974 hingga 11.780 dengan rataan sebesar 10.555.
+
+# Scatter Plot close (Y) dengan open (X1)
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = open, y = close)) + 
+  geom_point(color= "black") + 
+  geom_smooth(method = "lm", color = "yellow") +
+  theme_minimal() + 
+  labs(x = "open", y = "close",
+       title = "Scatter Plot close vs plot open")
+```
+Berdasarkan scatter plot diatas, menunjukkan hubungan linier yang positif antara close dan open. Artinya, stock close akan meningkat seiring dengan meningkatnya tingkat stock open.
+
+# Scatter Plot close (Y) dengan low (X2)
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = low, y = close)) + 
+  geom_point(color= "red") + 
+  geom_smooth(method = "lm", color = "yellow") +
+  theme_minimal() + 
+  labs(x = "low", y = "close",
+       title = "Scatter Plot close vs plot low")
+```
+Berdasarkan scatter plot diatas, menunjukkan hubungan linier yang positif antara close dan low. Artinya, stock close akan meningkat seiring dengan meningkatnya tingkat stock low. Dari plot juga terlihat bahwa titik-titik data cenderung dekat dengan garis linier yang menunjukkan adanya hubungan yang cukup erat antara kedua peubah.
+
+# Scatter Plot close (Y) dengan low (X3)
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = high, y = close)) + 
+  geom_point(color= "brown") + 
+  geom_smooth(method = "lm", color = "blue") +
+  theme_minimal() + 
+  labs(x = "high", y = "close",
+       title = "Scatter Plot close vs plot high")
+```
+Berdasarkan scatter plot di atas, menunjukkan hubungan linier yang cenderung negatif antara stock close dengan stock high. Artinya close akan naik seiring dengan meningkatnya tingkat high.
+```{r}
+# Matriks Korelasi
+library(corrplot)
+corrplot(corr=cor(data), method = "number", type = "upper")
+```
+Matriks Korelasi diatas menunjukkan korelasi antar peubah. Dapat terlihat bahwa korelasi antara close dengan open memiliki korelasi yang sangat kuat yaitu sebesar 0.97.
+
+## Model Regresi
+```{r}
+y <- data$close
+x1 <- data$open
+x2 <- data$low
+x3 <- data$high
+model.rlb <- lm(y ~ x1+x2+x3, data=data)
+summary(model.rlb)
+```
+Berdasarkan hasil perhitungan di atas, didapatkan model regresi sebagai berikut : $$y_i=-0.002641-0,443253x1_t+0.65657x2_t+0,785572x3_t+e$$.erdasarkan ringkasan model dapat diketahui bahwa hasil uji F memiliki *p-value* \< $\alpha$ (5%)  koefisien peubah x1,x2,dan x3 sehingga nyata pada taraf 5%. Artinya,  terdapat ttiga variabel yang tidak berpengaruh nyata terhadap model. dan  *p-value* \> $\alpha$ (5%) ialah koe. intercept yang berpengaruh nyata .
+
+Diperoleh pula hasil uji t-parsial yaitu didapat beberapa parameter regresi yang signifikan dengan memiliki *p-value* \< $\alpha$ (5%) yaitu koefisien peubah x1 sehingga nyata pada taraf 5% dan ada juga yang tidak signifikan dengan memiliki *p-value* \> $\alpha$ (5%) yaitu intersep dan koefisien peubah x2,x3 sehingga keduanya tidak nyata pada taraf 5%. 
+
+Selanjutnya dapat dilihat juga nilai $R^2=0.9859$. Artinya, sebesar 98.59% keragaman stock close dapat dijelaskan oleh peubah stock low, peubah open,dan peubah stock high.
+
+## Pengujian Asumsi Klasik
+
+### Prosedur Eksploratif
+```{r}
+# Sisaan dan fitted value
+sisaan<- residuals(model.rlb)
+fitValue<- predict(model.rlb)
+
+# Normal QQ-Plot
+qqnorm(sisaan);qqline(sisaan, col = "green", lwd = 2)
+hist(sisaan, col = "black")
+
+# Plot Residual vs Fitted Value
+plot(fitValue, sisaan, xlab = "Residual", ylab = "Fitted Values", main = "Residual vs Fitted Values", pch = 20);abline(h = 0, lwd = 1,col = "brown")
+
+# Plot Residual vs Order
+plot(sisaan, type = 'o', xlab = "Residual", ylab = "Order", main = "Residual vs Order", pch = 20);abline(h = 0, lwd = 1, col = "orange")
+
+#ACF dan PACF
+par(mfrow = c(1,2))
+acf(sisaan)
+pacf(sisaan)
+```
+1)Berdasarkan Normal Q-Q Plot yang dihasilkan, terlihat bahwa sebaran titik-titik data mendekati dan berada di sekitar garis dan yang berarti mengindikasikan sisaan menyebar normal. Begitupun dengan histogram sisaan yang dihasilkan menunjukkan sebaran yang normal.Namun hal ini akan diperiksa kembali melalui uji formal.
+
+2)Berdasarkan Plot Residual vs Fitted Values yang dihasilkan, terlihat bahwa sisaan menyebar secara acak dan memiliki lebar pita yang sama yang berarti ragam sisaan homogen. Namun hal ini akan diperiksa kembali melalui uji formal.
+
+3)Berdasarkan Plot Residual vs Order yang dihasilkan, terlihat bahwa sisaan tidak menyebar secara acak melainkan memiliki pola naik turun (fluktuatif) yang sama yang berarti sisaan saling bebas atau terindikasi adanya tidak ada autokorelasi.
+
+4)Berdasarkan plot ACF dan PACF yang dihasilkan, terlihat bahwa selain pada lag 0, tidak terdapat beberapa garis vertikal yang melewati batas signifikan. Oleh karena itu dapat disimpulkan bahwa tidak terdapat autokorelasi. 
+
+
+## Uji Formal
+```{r}
+# Uji normalitas sisaan
+shapiro.test(sisaan)
+```
+Hipotesis uji
+H0 : sisaan menyebar normal
+H1 : sisaan tidak menyebar normal
+
+Berdasarkan uji formal Saphiro-Wilk didapatkan nilai *p-value* \< $\alpha$ (5%) yang berarti cenderung tolak H0, sehingga cukup bukti untuk menyatakan sisaan tidak menyebar normal.
+
+```{r}
+# Uji kehomogenan ragam
+library(lmtest)
+bptest(model.rlb)
+```
+Hipotesis uji
+H0 : ragam sisaan homogen
+H1 : ragam sisaan tidak homogen
+
+Berdasarkan uji formal Breusch-Pagan didapatkan nilai *p-value* \< $\alpha$ (5%) yang berarti cenderung tolak H0, sehingga tidak bukti untuk menyatakan ragam sisaan homogen.
+
+```{r}
+# Uji sisaan saling bebas (deteksi autokorelasi)
+library(lmtest)
+dwtest(model.rlb)
+```
+Hipotesis uji
+H0 : tidak terdapat autokorelasi (sisaan saling bebas)
+H1 : adanya autokorelasi (sisaan tidak saling bebas)
+
+Berdasarkan uji formal Durbin-Watson didapatkan nilai *p-value* \> $\alpha$ (5%) yang berarti cenderung terima H0, sehingga cukup bukti untuk menyatakan bahwa adanya autokorelasi.
+
+Kemudian dapat dilihat berdasarkan hasil DW Test, didapatkan nilai $DW = 1.8479$. Berdasarkan tabel Durbin-Watson diperoleh nilai $dL = 1.7382$ dan $dU = 1.799$ (diperoleh dari tabel yg k=3, karena peubah penjelasnya ada 3 dengan n = 200). Nilai DW tidak berada di antara nilai dL dan dU. Artinya, tidak berada di daerah inkonklusif, maka dapat dikatakan berada di daerah autokorelasi positif atau menunjukkan adanya autokorelasi. Oleh karena itu, diperlukan penangan autokorelasi. Penanganan yang akan digunakan menggunakan dua metode, yaitu Cochrane-Orcutt dan Hildret-Lu.
+
+```{r}
+# Multikolinieritas
+library(car)
+vif(model.rlb)
+```
+Nilai VIF dari kedua peubah bebas seluruhnya di atas 10, maka dapat disimpulkan bahwa model regresi ini mengandung multikolinieritas.
+
+## Penanganan Autokorelasi Metode Cochrane-Orcutt
+```{r}
+library(orcutt)
+modelCO<-cochrane.orcutt(model.rlb)
+modelCO
+```
+Hasil keluaran model setelah dilakukan penanganan adalah sebagai berikut: $$y_i=0.007625-0.452985x1_t+ 0.658391x2_t+0.79240x3_t$$ dan diperoleh nilai rho sebesar $0.075885$. Hasil juga menunjukkan bahwa nilai DW dan p-value meningkat menjadi $1.99949$ dan $0.4693$. Nilai DW hasil transformasi tersebut juga sudah berada pada rentang DU \< DW \< 4-DU atau $1.6751 < DW < 2.3249$. Hal tersebut juga didikung dengan diperoleh nilai *p-value* \> 0.05, artinya cukup bukti menyatakan bahwa sisaan tidak terdapat autokorelasi pada taraf nyata 5%.
+
+Berikut ada cara manualnya:
+```{r}
+# Menentukan Rho optimum
+rho<- modelCO$rho
+rho
+
+# Transformasi Manual
+y.trans<- y[-1]-y[-200]*rho
+x1.trans<- x1[-1]-x1[-200]*rho
+x2.trans<- x2[-1]-x2[-200]*rho
+x3.trans<- x3[-1]-x3[-200]*rho
+modelCOmanual<- lm(y.trans~x1.trans+x2.trans+x3.trans)
+summary(modelCOmanual)
+```
+Berdasarkan hasil diatas diperoleh persamaan $$y_i=0.007046-0.452985x1_t+0.658391x2_t+0.792400x3_t$$. Namun hasil tersebut belum ditransformasi balik sehingga harus ditransformasi balik terlebih dahulu.
+
+```{r}
+# Transformasi balik
+cat("y = ", coef(modelCOmanual)[1]/(1-rho), "+", coef(modelCOmanual)[2],"x1", "+", coef(modelCOmanual)[3],"x2", "+", coef(modelCOmanual)[4],"x3", "+",sep = "")
+```
+Setelah ditansformasi balik diperoleh persamaan $$y_i=0.007624548-0.4529853x1_t+0.6583906x2_t+0.7923997x3_t$$. Hasil tersebut sama seperti hasil Cochrane-Orcutt sebelumnya yang menggunakan fungsi langsung.
+
+## Penanganan Autokorelasi Metode Hildreth-Lu
+```{r}
+library(HoRM)
+# Hildreth-Lu
+hildreth.lu.func<- function(r, model.rlb){
+  X <- model.matrix(model.rlb)[,-1]
+  y1 <- model.response(model.frame(model.rlb))
+  n <- length(y1)
+  t <- 2:n
+  y1 <- y1[t]-r*y1[t-1]
+  X <- X[t]-r*X[t-1]
+  
+  
+  return(lm(y1~X))
+}
+```
+```{r}
+#Pencarian rho yang meminimumkan SSE
+r <- c(seq(0.1,0.9, by= 0.1))
+tab <- data.frame("rho" = r, "SSE" = sapply(r,function(i){deviance(hildreth.lu.func(i, model.rlb))}))
+round(tab, 4)
+
+#Membuat Grafik rho dan SSE
+plot(tab$SSE ~ tab$rho , type = "l")
+abline(v = tab[tab$SSE==min(tab$SSE),"rho"], lty = 3)
+```
+Berdasarkan hasil diatas, nilai SSE terkecil terdapat pada rho <0,1 Selanjutnya untuk lebih rinci akan dilakukan pemilihan rho terbaik 0.1 dengan jarak 0.01.
+
+```{r}
+#Rho Optimal di sekitar 0,1
+r <- seq(0.1,0.2, by= 0.01)
+tab <- data.frame("rho" = r, "SSE" = sapply(r, function(i){deviance(hildreth.lu.func(i, model.rlb))}))
+round(tab, 4)
+
+#Grafik SSE optimum
+plot(tab$SSE ~ tab$rho , type = "l")
+abline(v = tab[tab$SSE==min(tab$SSE),"rho"], lty = 3)
+```
+
+Dari grafik di atas, dapat terlihat bahwa nilai optimum berada di rho = $0.1$ dan memiliki nilai SSE terkecil sehingga nilai ini akan digunakan untuk merumuskan model terbaik pada tahap selanjutnya:
+
+```{r}
+#Model terbaik
+modelHL <- hildreth.lu.func(0.1, model.rlb)
+summary(modelHL)
+```
+Persamaan yang dihasilkan dengan menggunakan rho 0.1 adalah y = 0,357 + 0,9617X. Hasil tersebut belum ditransformasi balik.
+
+```{r}
+#Transformasi Balik
+cat("y1 = ", coef(modelHL)[1]/(1-0.1), "+", coef(modelHL)[2],"X", sep = "")
+```
+Setelah dilakukan tranformasi balik, didapatkan model dengan metode Hildreth-Lu sebagai berikut. $$y_i=0.396664+0.9617529x_t$$
+
+```{r}
+#Deteksi autokorelasi
+dwtest(modelHL)
+```
+Hasil uji Durbin-Watson menunjukkan bawah nilai DW sebesar $2.2358$ tidak berada pada selang daerah ada autokorelasi, yaitu tidak pada rentang DU \< DW \< 4-DU atau $1.799 < DW < 2.201$. Hal tersebut juga didukung oleh *p-value* sebesar $0.9455$, di mana *p-value* \>$\alpha$=5%. Artinya terima $H_0$ atau tidak cukup bukti menyatakan bahwa masih ada autokorelasi dalam data close dengan metode Hildreth-Lu pada taraf nyata 5%. Pada metode Hildreth-Lu menunjukkan hasil yang berbeda dengan metode Cochrane-Orcutt.
+
+Terakhir, akan dibandingkan nilai SSE dari ketiga metode (metode awal, metode Cochrane-Orcutt, dan Hildreth-Lu).
+
+```{r}
+#Perbandingan
+sseModelawal <- anova(model.rlb)$`Sum Sq`[-1]
+sseModelCO <- anova(modelCOmanual)$`Sum Sq`[-1]
+sseModelHL <- anova(modelHL)$`Sum Sq`[-1]
+mseModelawal <- sseModelawal/length(y)
+mseModelCO <- sseModelCO/length(y)
+mseModelHL <- sseModelHL/length(y)
+akurasi <- matrix(c(sseModelawal,sseModelCO,sseModelHL,
+                    mseModelawal,mseModelCO,mseModelHL),nrow=2,ncol=3,byrow = T)
+colnames(akurasi) <- c("Model Awal", "Model Cochrane-Orcutt", "Model Hildreth-Lu")
+row.names(akurasi) <- c("SSE","MSE")
+akurasi
+```
+Berdasarkan hasil tersebut dapat diketahui bahwa hasil penanganan autokorelasi dengan metode Cochrane-Orcutt dan Hildreth-Lu memiliki SSE yang tidak cukup jauh berbeda. Nilai SSE model orcutt = $ 0.8845263$ dan model hildreth-Lu = $1.349331$. Meskipun demikian, model orcutt dan hildreth tersebut lebih baik jika dibandingkan model awal ketika autokorelasi masih terjadi, yaitu sebesar $2.881384$. 
+
+# Simpulan
+
+Berdasarkan hasil analisis di atas, dapat disimpulkan bahwa pada data repsol stock terdapat autokorelasi. Hal ini dapat dideteksi setelah melakukan pengujian dengan secara eksploratif melalui metode grafik residual dan ACF PACF serta uji formal Durbin Watson. Oleh karena itu, dilakukan penanganan autokorelasi terhadap data AQI dengan metode Cochrane-Orcutt dan Hildreth-Lu. Setelah dilakukan penanganan menggunakan kedua metode tersebut, masalah autokorelasi pada data repsol stock hanya dapat berhasil diatasi menggunakan metode Cochrane-Orcutt. Sedangkan dengan metode Hildreth-Lu tidak dapat teratasi atau masih terindikasi
+adanya autokorelasi.
